@@ -351,14 +351,22 @@ components:
     ErrorResponse:
       type: object
       required:
+        - code
         - message
         - path
         - timestamp
+        - status
       properties:
+        code:
+          type: string
+          example: USER_NOT_FOUND
         message:
           type: string
         path:
           type: string
+        status:
+          type: integer
+          example: 404
         timestamp:
           type: string
           format: date-time

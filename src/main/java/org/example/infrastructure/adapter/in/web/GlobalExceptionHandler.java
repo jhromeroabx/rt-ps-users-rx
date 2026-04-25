@@ -26,7 +26,7 @@ public class GlobalExceptionHandler {
     public Mono<ResponseEntity<ErrorResponse>> handleDuplicate(DuplicateEmailException ex, ServerWebExchange exchange) {
         return Mono.just(
                 ResponseEntity.status(HttpStatus.CONFLICT)
-                        .body(buildError(ex.getMessage(), exchange))
+                        .body(buildError("DUPLICATE_EMAIL", ex.getMessage(), HttpStatus.CONFLICT, exchange))
         );
     }
 
@@ -40,7 +40,7 @@ public class GlobalExceptionHandler {
 
         return Mono.just(
                 ResponseEntity.badRequest()
-                        .body(buildError(message, exchange))
+                .body(buildError("VALIDATION_ERROR", message, HttpStatus.BAD_REQUEST, exchange))
         );
     }
 
@@ -48,7 +48,7 @@ public class GlobalExceptionHandler {
     public Mono<ResponseEntity<ErrorResponse>> handleInvalidPassword(InvalidPasswordException ex, ServerWebExchange exchange) {
         return Mono.just(
                 ResponseEntity.badRequest()
-                        .body(buildError(ex.getMessage(), exchange))
+                        .body(buildError("INVALID_PASSWORD", ex.getMessage(), HttpStatus.BAD_REQUEST, exchange))
         );
     }
 
@@ -56,7 +56,7 @@ public class GlobalExceptionHandler {
     public Mono<ResponseEntity<ErrorResponse>> handleNotFound(UserNotFoundException ex, ServerWebExchange exchange) {
         return Mono.just(
                 ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(buildError(ex.getMessage(), exchange))
+                        .body(buildError("USER_NOT_FOUND", ex.getMessage(), HttpStatus.NOT_FOUND, exchange))
         );
     }
 
@@ -64,7 +64,7 @@ public class GlobalExceptionHandler {
     public Mono<ResponseEntity<ErrorResponse>> handleIllegalArgument(IllegalArgumentException ex, ServerWebExchange exchange) {
         return Mono.just(
                 ResponseEntity.badRequest()
-                        .body(buildError(ex.getMessage(), exchange))
+                        .body(buildError("INVALID_ARGUMENT", ex.getMessage(), HttpStatus.BAD_REQUEST, exchange))
         );
     }
 
@@ -79,7 +79,7 @@ public class GlobalExceptionHandler {
 
         return Mono.just(
                 ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                        .body(buildError(message, exchange))
+                .body(buildError("DATA_ACCESS_ERROR", message, HttpStatus.INTERNAL_SERVER_ERROR, exchange))
         );
     }
 
@@ -93,7 +93,7 @@ public class GlobalExceptionHandler {
 
         return Mono.just(
                 ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                        .body(buildError(message, exchange))
+                .body(buildError("INTERNAL_ERROR", message, HttpStatus.INTERNAL_SERVER_ERROR, exchange))
         );
     }
 
@@ -107,7 +107,13 @@ public class GlobalExceptionHandler {
         };
     }
 
-    private ErrorResponse buildError(String message, ServerWebExchange exchange) {
-        return new ErrorResponse(message, exchange.getRequest().getPath().value(), OffsetDateTime.now());
+    private ErrorResponse buildError(String code, String message, HttpStatus status, ServerWebExchange exchange) {
+        return new ErrorResponse(
+                code,
+                message,
+                exchange.getRequest().getPath().value(),
+                status.value(),
+                OffsetDateTime.now()
+        );
     }
 }

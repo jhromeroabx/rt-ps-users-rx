@@ -1,0 +1,61 @@
+@startuml
+title POST /api/v1/users con idempotencia
+
+actor Cliente
+participant UsersController
+participant IdempotencyService
+participant IdempotencyRepositoryAdapter as IdempotencyPort
+participant UserService
+participant BCryptPasswordEncoderAdapter as PasswordEncoderPort
+participant UserRepositoryAdapter as UserRepositoryPort
+database H2_DB
+
+Cliente -> UsersController: POST /api/v1/users\nX-Request-Id
+UsersController -> IdempotencyService: find(requestId)
+IdempotencyService -> IdempotencyPort: find(requestId)
+IdempotencyPort -> H2_DB: SELECT idempotency_key
+H2_DB --> IdempotencyPort: response cacheada / vacia
+IdempotencyPort --> IdempotencyService: Mono<UserResponse>
+IdempotencyService --> UsersController: response cacheada / vacia
+
+alt request ya procesado
+  UsersController --> Cliente: 200 OK\nX-Idempotent-Replay=true
+else nuevo request
+  UsersController -> UserService: create(request)
+  UserService -> PasswordEncoderPort: encode(password)
+  PasswordEncoderPort --> UserService: passwordHash
+  UserService -> UserRepositoryPort: existsByEmail(email)
+  UserRepositoryPort -> H2_DB: SELECT users by email
+  H2_DB --> UserRepositoryPort: exists / not exists
+  UserRepositoryPort --> UserService: Mono<Boolean>
+
+  alt email duplicado
+    UserService --> UsersController: DuplicateEmailException
+    UsersController --> Cliente: 409 CONFLICT
+  else request valido
+    UserService -> UserRepositoryPort: save(user)
+    UserRepositoryPort -> H2_DB: SELECT users by id
+
+    alt usuario nuevo
+      UserRepositoryPort -> H2_DB: INSERT users
+    else usuario existente
+      UserRepositoryPort -> H2_DB: UPDATE users
+    end
+
+    UserRepositoryPort -> H2_DB: DELETE phones by user_id
+    UserRepositoryPort -> H2_DB: INSERT phones
+    H2_DB --> UserRepositoryPort: user persisted
+    UserRepositoryPort --> UserService: User
+    UserService --> UsersController: UserResponse
+
+    UsersController -> IdempotencyService: save(requestId, response)
+    IdempotencyService -> IdempotencyPort: save(requestId, response)
+    IdempotencyPort -> H2_DB: INSERT idempotency_key
+    H2_DB --> IdempotencyPort: stored
+    IdempotencyPort --> IdempotencyService: Mono<Void>
+    IdempotencyService --> UsersController: completion
+    UsersController --> Cliente: 201 CREATED
+  end
+end
+
+@enduml

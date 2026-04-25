@@ -1,0 +1,51 @@
+@startuml
+allowmixing
+title Arquitectura hexagonal - rt-ps-users-rx
+left to right direction
+skinparam packageStyle rectangle
+
+package "Infrastructure - In" {
+  class UsersController
+  class GlobalExceptionHandler
+}
+
+package Application {
+  class UserService
+  class IdempotencyService
+}
+
+package Domain {
+  class User
+  class Phone
+  interface UserRepositoryPort
+  interface PasswordEncoderPort
+  interface IdempotencyPort
+}
+
+package "Infrastructure - Out" {
+  class UserRepositoryAdapter
+  class BCryptPasswordEncoderAdapter
+  class IdempotencyRepositoryAdapter
+}
+
+database "H2 DB" as H2
+
+UsersController --> UserService
+UsersController --> IdempotencyService
+GlobalExceptionHandler ..> UsersController : maneja errores de
+
+UserService --> UserRepositoryPort
+UserService --> PasswordEncoderPort
+IdempotencyService --> IdempotencyPort
+
+UserRepositoryAdapter ..|> UserRepositoryPort
+BCryptPasswordEncoderAdapter ..|> PasswordEncoderPort
+IdempotencyRepositoryAdapter ..|> IdempotencyPort
+
+UserRepositoryAdapter --> H2
+IdempotencyRepositoryAdapter --> H2
+
+UserRepositoryPort ..> User
+UserRepositoryPort ..> Phone
+
+@enduml
