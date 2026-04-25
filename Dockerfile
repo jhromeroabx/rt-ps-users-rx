@@ -11,7 +11,7 @@ FROM eclipse-temurin:17-jre-alpine
 
 WORKDIR /app
 
-COPY --from=build /workspace/target/rt-ibk-1.0.0.jar app.jar
+COPY --from=build /workspace/target/rt-ps-users-rx-1.0.0.jar app.jar
 
 EXPOSE 8080
 
