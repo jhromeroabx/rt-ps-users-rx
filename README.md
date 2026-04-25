@@ -39,6 +39,24 @@ Se mantiene una estructura tipo hexagonal:
 - infrastructure/adapter/out: persistencia R2DBC y seguridad de password.
 - src/main/resources/openapi: contrato OpenAPI contract-first.
 
+## Diagramas
+
+Diagrama de arquitectura hexagonal:
+
+Este diagrama muestra la separación entre las capas de entrada, aplicación, dominio e infraestructura de salida. Permite visualizar cómo `UsersController` y `GlobalExceptionHandler` dependen de los servicios de aplicación, mientras que los servicios consumen puertos del dominio implementados por adapters concretos.
+
+![Arquitectura hexagonal](docs/diagrams/architecture-hexagonal.png)
+
+Fuente PlantUML: [docs/diagrams/architecture-hexagonal.puml](docs/diagrams/architecture-hexagonal.puml)
+
+Diagrama de secuencia para creación de usuario con idempotencia:
+
+Este diagrama describe el flujo del endpoint `POST /api/v1/users` cuando se envía el header `X-Request-Id`. Primero se consulta si ya existe una respuesta almacenada para esa clave; si no existe, se valida el correo, se persiste el usuario y finalmente se guarda la respuesta para soportar replay idempotente.
+
+![Secuencia create user con idempotencia](docs/diagrams/sequence-create-user-idempotency.png)
+
+Fuente PlantUML: [docs/diagrams/sequence-create-user-idempotency.puml](docs/diagrams/sequence-create-user-idempotency.puml)
+
 ## Contrato OpenAPI
 
 - Especificación: [src/main/resources/openapi/openapi.yml](src/main/resources/openapi/openapi.yml)
@@ -79,6 +97,14 @@ mvn clean verify
 Reporte JaCoCo generado en:
 
 - `target/site/jacoco/index.html`
+
+Cobertura validada de la capa `org.example.application.service`:
+
+- `IdempotencyService`: 100%
+- `UserService`: 92%
+- Total del paquete de servicios: 93%
+
+El umbral mínimo exigido por el reto es 70%, validado automáticamente por JaCoCo durante `mvn clean verify`.
 
 ## Ejecutar con Docker
 
@@ -164,3 +190,17 @@ Archivo de ejemplo: [.env.sample](.env.sample)
 - `DB_PASS`
 - `H2_CONSOLE`
 - `PASSWORD_REGEX`
+
+## Manejo de errores reactivo
+
+La aplicación implementa manejo de errores reactivo de forma centralizada:
+
+- En la capa de aplicación, los flujos reactivos propagan errores mediante `Mono.error(...)` y `switchIfEmpty(...)`.
+- En la capa web, `GlobalExceptionHandler` traduce esas excepciones a respuestas HTTP consistentes mediante `@RestControllerAdvice`.
+- El contrato de error usa `ErrorResponse`, con los campos `code`, `message`, `path`, `status` y `timestamp`.
+
+Casos manejados:
+- `400 Bad Request` para validaciones y contraseñas inválidas
+- `404 Not Found` para usuarios inexistentes
+- `409 Conflict` para correo duplicado
+- `500 Internal Server Error` para errores no controlados
