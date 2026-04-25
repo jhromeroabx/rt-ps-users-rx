@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: users-microservice
+  r2dbc:
+    url: ${DB_URL:r2dbc:h2:mem:///usersdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE}
+    username: ${DB_USER:sa}
+    password: ${DB_PASS:}
+    pool:
+      enabled: true
+      initial-size: 5
+      max-size: 10
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+  h2:
+    console:
+      enabled: ${H2_CONSOLE:true}
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    use-root-path: true
+
+server:
+  forward-headers-strategy: framework
+
+app:
+  security:
+    password-regex: ${PASSWORD_REGEX:^(?=.*[A-Z])(?=.*[a-z])(?=.*\d).{8,}$}

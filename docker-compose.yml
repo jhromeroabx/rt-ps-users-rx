@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  users-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: users-service
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env.sample
+    environment:
+      DB_URL: ${DB_URL:-r2dbc:h2:mem:///usersdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE}
+      DB_USER: ${DB_USER:-sa}
+      DB_PASS: ${DB_PASS:-}
+      H2_CONSOLE: ${H2_CONSOLE:-true}
+      PASSWORD_REGEX: ${PASSWORD_REGEX:-^(?=.*[A-Z])(?=.*[a-z])(?=.*\d).{8,}$}
