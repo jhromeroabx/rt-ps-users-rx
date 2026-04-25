@@ -1,9 +1,11 @@
 package org.example.infrastructure.adapter.in.web;
 
+import lombok.extern.slf4j.Slf4j;
 import org.example.domain.exception.DuplicateEmailException;
 import org.example.domain.exception.InvalidPasswordException;
 import org.example.domain.exception.UserNotFoundException;
 import org.example.users.api.model.ErrorResponse;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -14,7 +16,9 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.time.OffsetDateTime;
+import java.util.Optional;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -22,13 +26,12 @@ public class GlobalExceptionHandler {
     public Mono<ResponseEntity<ErrorResponse>> handleDuplicate(DuplicateEmailException ex, ServerWebExchange exchange) {
         return Mono.just(
                 ResponseEntity.status(HttpStatus.CONFLICT)
-                        .body(buildError(ex.getMessage(), exchange))
+                        .body(buildError("DUPLICATE_EMAIL", ex.getMessage(), HttpStatus.CONFLICT, exchange))
         );
     }
 
     @ExceptionHandler(WebExchangeBindException.class)
     public Mono<ResponseEntity<ErrorResponse>> handleValidation(WebExchangeBindException ex, ServerWebExchange exchange) {
-
         String message = ex.getFieldErrors()
                 .stream()
                 .findFirst()
@@ -36,9 +39,8 @@ public class GlobalExceptionHandler {
                 .orElse("Solicitud inválida");
 
         return Mono.just(
-                ResponseEntity
-                        .badRequest()
-                        .body(buildError(message, exchange))
+                ResponseEntity.badRequest()
+                .body(buildError("VALIDATION_ERROR", message, HttpStatus.BAD_REQUEST, exchange))
         );
     }
 
@@ -46,7 +48,7 @@ public class GlobalExceptionHandler {
     public Mono<ResponseEntity<ErrorResponse>> handleInvalidPassword(InvalidPasswordException ex, ServerWebExchange exchange) {
         return Mono.just(
                 ResponseEntity.badRequest()
-                        .body(buildError(ex.getMessage(), exchange))
+                        .body(buildError("INVALID_PASSWORD", ex.getMessage(), HttpStatus.BAD_REQUEST, exchange))
         );
     }
 
@@ -54,16 +56,44 @@ public class GlobalExceptionHandler {
     public Mono<ResponseEntity<ErrorResponse>> handleNotFound(UserNotFoundException ex, ServerWebExchange exchange) {
         return Mono.just(
                 ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(buildError(ex.getMessage(), exchange))
+                        .body(buildError("USER_NOT_FOUND", ex.getMessage(), HttpStatus.NOT_FOUND, exchange))
+        );
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public Mono<ResponseEntity<ErrorResponse>> handleIllegalArgument(IllegalArgumentException ex, ServerWebExchange exchange) {
+        return Mono.just(
+                ResponseEntity.badRequest()
+                        .body(buildError("INVALID_ARGUMENT", ex.getMessage(), HttpStatus.BAD_REQUEST, exchange))
+        );
+    }
+
+    @ExceptionHandler(DataAccessException.class)
+    public Mono<ResponseEntity<ErrorResponse>> handleDataAccess(DataAccessException ex, ServerWebExchange exchange) {
+        log.error("Database error on {} {}", exchange.getRequest().getMethod(), exchange.getRequest().getPath(), ex);
+
+        String message = Optional.ofNullable(ex.getMostSpecificCause())
+                .map(Throwable::getMessage)
+                .filter(value -> !value.isBlank())
+                .orElse("Error de acceso a datos");
+
+        return Mono.just(
+                ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(buildError("DATA_ACCESS_ERROR", message, HttpStatus.INTERNAL_SERVER_ERROR, exchange))
         );
     }
 
     @ExceptionHandler(Exception.class)
     public Mono<ResponseEntity<ErrorResponse>> handleGeneric(Exception ex, ServerWebExchange exchange) {
+        log.error("Unhandled error on {} {}", exchange.getRequest().getMethod(), exchange.getRequest().getPath(), ex);
+
+        String message = Optional.ofNullable(ex.getMessage())
+                .filter(value -> !value.isBlank())
+                .orElse(ex.getClass().getSimpleName());
 
         return Mono.just(
                 ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                        .body(buildError("Error interno del servidor", exchange))
+                .body(buildError("INTERNAL_ERROR", message, HttpStatus.INTERNAL_SERVER_ERROR, exchange))
         );
     }
 
@@ -77,7 +107,13 @@ public class GlobalExceptionHandler {
         };
     }
 
-    private ErrorResponse buildError(String message, ServerWebExchange exchange) {
-        return new ErrorResponse(message, exchange.getRequest().getPath().value(), OffsetDateTime.now());
+    private ErrorResponse buildError(String code, String message, HttpStatus status, ServerWebExchange exchange) {
+        return new ErrorResponse(
+                code,
+                message,
+                exchange.getRequest().getPath().value(),
+                status.value(),
+                OffsetDateTime.now()
+        );
     }
 }

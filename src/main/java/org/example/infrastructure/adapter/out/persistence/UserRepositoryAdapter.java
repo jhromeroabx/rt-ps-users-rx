@@ -1,4 +1,3 @@
-
 package org.example.infrastructure.adapter.out.persistence;
 
 import lombok.RequiredArgsConstructor;
@@ -45,14 +44,17 @@ public class UserRepositoryAdapter implements UserRepositoryPort {
     @Override
     @Transactional
     public Mono<User> save(User user) {
-        UserEntity entity = mapToEntity(user);
         List<PhoneEntity> phoneEntities = mapPhones(user.id(), user.phones());
+        return userRepository.existsById(user.id())
+                .flatMap(exists -> {
+                    UserEntity entity = mapToEntity(user, !exists);
 
-        return userRepository.save(entity)
-                .flatMap(savedUser -> phoneRepository.deleteAllByUserId(savedUser.getId())
-                        .thenMany(Flux.fromIterable(phoneEntities))
-                        .flatMap(phoneRepository::save)
-                .then(Mono.just(mapToDomain(savedUser, user.phones()))));
+                    return userRepository.save(entity)
+                            .flatMap(savedUser -> phoneRepository.deleteAllByUserId(savedUser.getId())
+                                    .thenMany(Flux.fromIterable(phoneEntities))
+                                    .flatMap(phoneRepository::save)
+                                    .then(Mono.just(mapToDomain(savedUser, user.phones()))));
+                });
     }
 
     @Override
@@ -78,11 +80,10 @@ public class UserRepositoryAdapter implements UserRepositoryPort {
                 phones,
                 entity.getCreatedAt(),
                 entity.getUpdatedAt(),
-                Boolean.TRUE.equals(entity.getActive())
-        );
+                Boolean.TRUE.equals(entity.getActive()));
     }
 
-    private UserEntity mapToEntity(User user) {
+    private UserEntity mapToEntity(User user, boolean isNew) {
         return UserEntity.builder()
                 .id(user.id())
                 .name(user.name())
@@ -91,6 +92,7 @@ public class UserRepositoryAdapter implements UserRepositoryPort {
                 .active(user.active())
                 .createdAt(user.createdAt())
                 .updatedAt(user.updatedAt())
+                .newEntity(isNew)
                 .build();
     }
 
