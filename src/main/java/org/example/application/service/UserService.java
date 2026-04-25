@@ -49,7 +49,7 @@ public class UserService {
         );
 
         return userRepository.existsByEmail(user.email())
-                .flatMap(exists -> exists
+                .flatMap(exists -> exists.booleanValue()
                         ? Mono.error(new DuplicateEmailException())
                         : userRepository.save(user))
                 .map(this::toResponse);
